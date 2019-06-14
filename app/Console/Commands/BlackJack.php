@@ -57,7 +57,7 @@ class BlackJack extends Command
 
         $this->clearScreen();
 
-        // Setup Blackjack Object and start a new game.
+        // Start a new game.
         $this->BlackJack = new BlackJackController();
         $this->BlackJack->setupNewGame($player_name);
 
@@ -126,14 +126,16 @@ class BlackJack extends Command
     {
         $headers = ['suit', 'value', 'status'];
 
-        $player_hand = $this->BlackJack->getPlayerHand($arg_player_id);
+        $obj_player_hand = $this->BlackJack->getPlayerHand($arg_player_id);
+        $arr_player_hand = array();
+        $card_array = array();
 
         // Hide face down cards.
-        foreach($player_hand as $index => $card) {
-            if($card['status'] == 'face_down') {
-                $player_hand[$index]['suit'] = "?";
-                $player_hand[$index]['value'] = "?";
-            }
+        foreach($obj_player_hand as $index => $card) {
+            $card_array['suit'] = $card->getVisibleSuit();
+            $card_array['value'] = $card->getVisibleValue();
+            $card_array['status'] = $card->getStatus();
+            $arr_player_hand[] = $card_array;
         }
 
         // Display if a player has busted.
@@ -144,13 +146,13 @@ class BlackJack extends Command
         }
 
         // Setup our table data for the player.
-        $table_rows = $player_hand;
+        $table_rows = $arr_player_hand;
         $table_rows[] = array('suit'=>'total','value'=>$this->BlackJack->getPlayerVisibleHandTotal($arg_player_id));
 
         // Display the players hand.
         $this->table($headers, $table_rows);
 
-        // Add a space between each table to display.
+        // Add a space between each table.
         $this->line(PHP_EOL);
 
     }

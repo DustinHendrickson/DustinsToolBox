@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use Storage;
+use App\Http\Controllers\Deck;
 
+/**
+ * Class BlackJackController
+ * @package App\Http\Controllers
+ */
 class BlackJackController extends Controller
 {
     /**
@@ -17,14 +21,9 @@ class BlackJackController extends Controller
     private CONST PLAYERS = array(0,1,2);
 
     /**
-     * @var array
+     * @var
      */
-    private $base_deck = array();
-
-    /**
-     * @var array
-     */
-    private $current_deck = array();
+    private $deck;
 
     /**
      * @var array
@@ -64,38 +63,6 @@ class BlackJackController extends Controller
     private $current_game_state;
 
     /**
-     * @return array
-     */
-    private function getBaseDeck()
-    {
-        return $this->base_deck;
-    }
-
-    /**
-     * @param array
-     */
-    private function setBaseDeck($base_deck)
-    {
-        $this->base_deck = $base_deck;
-    }
-
-    /**
-     * @return array
-     */
-    private function getCurrentDeck()
-    {
-        return $this->current_deck;
-    }
-
-    /**
-     * @param array $current_deck
-     */
-    private function setCurrentDeck($current_deck)
-    {
-        $this->current_deck = $current_deck;
-    }
-
-    /**
      * @param int $player_id
      *
      * @return array
@@ -105,20 +72,10 @@ class BlackJackController extends Controller
         return $this->player_hand[$player_id];
     }
 
-    /**
-     * @param int $player_id
-     * @param int $card_position
-     * @param string $key
-     * @param mixed $value
-     */
-    private function setCardPropertyInPlayerHand($player_id, $card_position, $key, $value)
-    {
-        $this->player_hand[$player_id][$card_position][$key] = $value;
-    }
 
     /**
      * @param int $player_id
-     * @param array $card
+     * @param object $card
      */
     private function addToPlayerHand($player_id, $card)
     {
@@ -247,13 +204,8 @@ class BlackJackController extends Controller
         $this->setPlayerName(1, $arg_player_name);
         $this->setPlayerName(2, "AI");
 
-        // Setup array for the base deck if it's not set.
-        if (empty($this->getBaseDeck())) {
-            $deck_json = Storage::disk('local')->get('poker_deck.json');
-            $deck_array = json_decode($deck_json, true);
-
-            $this->setBaseDeck($deck_array);
-        }
+        // Setup a new Deck.
+        $this->deck = new Deck();
 
         // Setup defaults
         $this->setPlayerPickedStay(0, false);
@@ -262,20 +214,10 @@ class BlackJackController extends Controller
         $this->setCurrentGameState('STATE_DEALING');
 
         // Deal
-        $this->shuffleDeck();
+        $this->deck->shuffle();
+        //$this->shuffleDeck();
         $this->dealInitialCards();
         $this->advanceState();
-    }
-
-    /**
-     * Shuffles the current deck array
-     */
-    private function shuffleDeck()
-    {
-        if(!empty($this->getBaseDeck())) {
-            $this->setCurrentDeck($this->getBaseDeck());
-            shuffle($this->current_deck);
-        }
     }
 
     /**
@@ -313,27 +255,6 @@ class BlackJackController extends Controller
     }
 
     /**
-     * Draws a card from the deck array
-     *
-     * @param string $arg_status
-     *
-     * @return array
-     */
-    private function drawCard($arg_status = 'face_up')
-    {
-        // If the deck is empty, we'll shuffle it and reset.
-        if(empty($this->getCurrentDeck())) {
-            $this->shuffleDeck();
-        }
-
-        // Grab the first card from the top of the deck.
-        $card = array_shift($this->current_deck);
-        $card['status'] = $arg_status;
-
-        return $card;
-    }
-
-    /**
      * Deals a drawn card to a player
      *
      * @param int    $arg_player_id
@@ -342,7 +263,7 @@ class BlackJackController extends Controller
     private function dealCard($arg_player_id, $arg_status = 'face_up')
     {
         // Give player a new card from the deck.
-        $this->addToPlayerHand($arg_player_id, $this->drawCard($arg_status));
+        $this->addToPlayerHand($arg_player_id,  $this->deck->drawCard($arg_status));
 
         // Player has a new card, so let's re-calc their hand value.
         $this->calculatePlayerHandValue($arg_player_id);
@@ -375,13 +296,13 @@ class BlackJackController extends Controller
 
         foreach($this->getPlayerHand($arg_player_id) as $card) {
 
-            $card_value = $this->calculateCardValue($card);
+            $card_value = $card->getConvertedValue();
 
             // Calculate total player hand value
             $this->addToPlayerHandTotal($arg_player_id, $card_value);
 
             // If a card is not face up we don't add it to the visible hand value we show to players.
-            if($card['status'] == 'face_up') {
+            if($card->getStatus() == 'face_up') {
                 $this->addToPlayerVisibleHandTotal($arg_player_id, $card_value);
             }
         }
@@ -406,7 +327,7 @@ class BlackJackController extends Controller
 
             // For each ace we check if the current hand value + any previous aces + using the current ace as an 11
             // would bust the player or not. If so, we set the value as 1.
-            switch ($card['value'])
+            switch ($card->getValue())
             {
                 case "Ace":
                     if($this->getPlayerHandTotal($arg_player_id) + $current_aces_value + 11 > 21) {
@@ -420,42 +341,12 @@ class BlackJackController extends Controller
             // Add to the total aces value to help calculate what the next ace's value should be if it's there.
             $current_aces_value += $value;
 
-            if($card['status'] == 'face_up') {
+            if($card->getStatus() == 'face_up') {
                 $this->addToPlayerVisibleHandTotal($arg_player_id, $value);
             }
 
             $this->addToPlayerHandTotal($arg_player_id, $value);
         }
-    }
-
-    /**
-     * Used to convert named cards to a value.
-     *
-     * @param array $arg_card
-     *
-     * @return int
-     */
-    private function calculateCardValue($arg_card)
-    {
-        switch ($arg_card['value'])
-        {
-            case "Jack":
-                $value = 10;
-                break;
-            case "King":
-                $value = 10;
-                break;
-            case "Queen":
-                $value = 10;
-                break;
-            case "Ace":
-                $value = 0;
-                break;
-            default:
-                $value = $arg_card['value'];
-        }
-
-        return $value;
     }
 
     /**
@@ -501,8 +392,8 @@ class BlackJackController extends Controller
     {
         // Loop over each card in the dealers hand and change the status if it's face down.
         foreach($this->getPlayerHand(0) as $index => $card) {
-            if ($card['status'] == 'face_down') {
-                $this->setCardPropertyInPlayerHand(0,$index,'status','face_up');
+            if ($card->getStatus() == 'face_down') {
+                $card->setStatus('face_up');
             }
         }
     }
