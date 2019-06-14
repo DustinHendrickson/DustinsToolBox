@@ -95,12 +95,12 @@ class BlackJack extends Command
                     $this->BlackJack->advanceState();
                     break;
                 case "STATE_AI_TURN":
-                    $player_action = $this->BlackJack->getAIAction(2);
+                    $player_action = $this->BlackJack->getPlayer(2)->getAiAction();
                     $this->BlackJack->doPlayerAction(2, $player_action);
                     $this->BlackJack->advanceState();
                     break;
                 case "STATE_DEALER_TURN":
-                    $player_action = $this->BlackJack->getAIAction(0);
+                    $player_action = $this->BlackJack->getPlayer(0)->getAiAction();
                     $this->BlackJack->doPlayerAction(0, $player_action);
                     $this->BlackJack->advanceState();
                     break;
@@ -126,7 +126,7 @@ class BlackJack extends Command
     {
         $headers = ['suit', 'value', 'status'];
 
-        $obj_player_hand = $this->BlackJack->getPlayerHand($arg_player_id);
+        $obj_player_hand = $this->BlackJack->getPlayer($arg_player_id)->getHand();
         $arr_player_hand = array();
         $card_array = array();
 
@@ -139,15 +139,15 @@ class BlackJack extends Command
         }
 
         // Display if a player has busted.
-        if($this->BlackJack->didPlayerBust($arg_player_id)) {
-            $this->error($this->BlackJack->getPlayerName($arg_player_id) . " BUSTED!");
+        if($this->BlackJack->getPlayer($arg_player_id)->didPlayerBust()) {
+            $this->error($this->BlackJack->getPlayer($arg_player_id)->getName() . " BUSTED!");
         } else {
-            $this->info($this->BlackJack->getPlayerName($arg_player_id) . "'s Hand...");
+            $this->info($this->BlackJack->getPlayer($arg_player_id)->getName() . "'s Hand...");
         }
 
         // Setup our table data for the player.
         $table_rows = $arr_player_hand;
-        $table_rows[] = array('suit'=>'total','value'=>$this->BlackJack->getPlayerVisibleHandTotal($arg_player_id));
+        $table_rows[] = array('suit'=>'total','value'=>$this->BlackJack->getPlayer($arg_player_id)->getVisibleHandTotal());
 
         // Display the players hand.
         $this->table($headers, $table_rows);
@@ -177,7 +177,7 @@ class BlackJack extends Command
     private function getPlayerInput($arg_player_id = 1)
     {
         // Display a selection of choices to the player if they have not busted.
-        if($this->BlackJack->didPlayerBust($arg_player_id) == false) {
+        if($this->BlackJack->getPlayer($arg_player_id)->didPlayerBust() == false) {
             $picked_option = $this->choice('What would you like to do?', ['Hit Me', 'Stay'], 0);
         } else {
             $picked_option = "Stay";

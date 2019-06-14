@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Deck;
+use App\Http\Controllers\Player;
 
 /**
  * Class BlackJackController
@@ -28,27 +29,8 @@ class BlackJackController extends Controller
     /**
      * @var array
      */
-    private $player_hand = array();
+    private $players = array();
 
-    /**
-     * @var array
-     */
-    private $player_hand_total = array();
-
-    /**
-     * @var array
-     */
-    private $player_visible_hand_total = array();
-
-    /**
-     * @var array
-     */
-    private $player_name = array();
-
-    /**
-     * @var array
-     */
-    private $player_picked_stay = array();
 
     /**
      * Options:
@@ -62,118 +44,24 @@ class BlackJackController extends Controller
      */
     private $current_game_state;
 
+
     /**
-     * @param int $player_id
+     * @param $arg_player_id
+     * @param $arg_player_name
+     */
+    public function addPlayer($arg_player_id, $arg_player_name)
+    {
+        $this->players[$arg_player_id] = new Player($arg_player_name);
+    }
+
+    /**
+     * @param $arg_player_id
      *
-     * @return array
+     * @return player
      */
-    public function getPlayerHand($player_id)
+    public function getPlayer($arg_player_id)
     {
-        return $this->player_hand[$player_id];
-    }
-
-
-    /**
-     * @param int $player_id
-     * @param object $card
-     */
-    private function addToPlayerHand($player_id, $card)
-    {
-        $this->player_hand[$player_id][] = $card;
-    }
-
-    /**
-     * @param int $player_id
-     *
-     * @return int
-     */
-    private function getPlayerHandTotal($player_id)
-    {
-        return $this->player_hand_total[$player_id];
-    }
-
-    /**
-     * @param int $player_id
-     * @param int $player_hand_total
-     */
-    private function setPlayerHandTotal($player_id, $player_hand_total)
-    {
-        $this->player_hand_total[$player_id] = $player_hand_total;
-    }
-
-    /**
-     * @param int $player_id
-     * @param int $player_hand_total
-     */
-    private function addToPlayerHandTotal($player_id, $player_hand_total)
-    {
-        $this->player_hand_total[$player_id] += $player_hand_total;
-    }
-
-    /**
-     * @param int $player_id
-     *
-     * @return int
-     */
-    public function getPlayerVisibleHandTotal($player_id)
-    {
-        return $this->player_visible_hand_total[$player_id];
-    }
-
-    /**
-     * @param int $player_id
-     * @param int $player_visible_hand_total
-     */
-    private function setPlayerVisibleHandTotal($player_id, $player_visible_hand_total)
-    {
-        $this->player_visible_hand_total[$player_id] = $player_visible_hand_total;
-    }
-
-    /**
-     * @param int $player_id
-     * @param int $player_visible_hand_total
-     */
-    private function addToPlayerVisibleHandTotal($player_id, $player_visible_hand_total)
-    {
-        $this->player_visible_hand_total[$player_id] += $player_visible_hand_total;
-    }
-
-    /**
-     * @param int $player_id
-     *
-     * @return string
-     */
-    public function getPlayerName($player_id)
-    {
-        return $this->player_name[$player_id];
-    }
-
-    /**
-     * @param int $player_id
-     * @param string $player_name
-     */
-    private function setPlayerName($player_id, $player_name)
-    {
-        $this->player_name[$player_id] = $player_name;
-    }
-
-    /**
-     * @param $player_id
-     *
-     * @return bool
-     */
-    public function getPlayerPickedStay($player_id)
-    {
-        return $this->player_picked_stay[$player_id];
-    }
-
-    /**
-     * @param int $player_id
-     * @param bool $player_picked_stay
-     */
-    private function setPlayerPickedStay($player_id, $player_picked_stay)
-    {
-        $this->player_picked_stay[$player_id] = $player_picked_stay;
+        return $this->players[$arg_player_id];
     }
 
     /**
@@ -199,23 +87,19 @@ class BlackJackController extends Controller
      */
     public function setupNewGame($arg_player_name = "Player")
     {
-        // Set player names
-        $this->setPlayerName(0, "Dealer");
-        $this->setPlayerName(1, $arg_player_name);
-        $this->setPlayerName(2, "AI");
+        // Add our players.
+        $this->addPlayer(0, "Dealer");
+        $this->addPlayer(1, $arg_player_name);
+        $this->addPlayer(2, "AI");
 
         // Setup a new Deck.
         $this->deck = new Deck();
 
         // Setup defaults
-        $this->setPlayerPickedStay(0, false);
-        $this->setPlayerPickedStay(1, false);
-        $this->setPlayerPickedStay(2, false);
         $this->setCurrentGameState('STATE_DEALING');
 
         // Deal
         $this->deck->shuffle();
-        //$this->shuffleDeck();
         $this->dealInitialCards();
         $this->advanceState();
     }
@@ -232,20 +116,20 @@ class BlackJackController extends Controller
                 break;
             case "STATE_PLAYER_TURN":
                 $new_state = "STATE_AI_TURN";
-                if($this->getPlayerPickedStay(2) == true) {
+                if($this->getPlayer(2)->isPickedStay() == true) {
                     $new_state = "STATE_DEALER_TURN";
                 }
                 break;
             case "STATE_AI_TURN":
                 $new_state = "STATE_DEALER_TURN";
-                if($this->getPlayerPickedStay(0) == true) {
+                if($this->getPlayer(0)->isPickedStay() == true) {
                     $new_state = "STATE_PLAYER_TURN";
                 }
                 break;
             case "STATE_DEALER_TURN":
                 $new_state = "STATE_PLAYER_TURN";
                 // If player stays, we skip them and let the AI play.
-                if($this->getPlayerPickedStay(1) == true) {
+                if($this->getPlayer(1)->isPickedStay() == true) {
                     $new_state = "STATE_AI_TURN";
                 }
                 break;
@@ -263,10 +147,10 @@ class BlackJackController extends Controller
     private function dealCard($arg_player_id, $arg_status = 'face_up')
     {
         // Give player a new card from the deck.
-        $this->addToPlayerHand($arg_player_id,  $this->deck->drawCard($arg_status));
+        $this->getPlayer($arg_player_id)->addToHand($this->deck->drawCard($arg_status));
 
         // Player has a new card, so let's re-calc their hand value.
-        $this->calculatePlayerHandValue($arg_player_id);
+        $this->getPlayer($arg_player_id)->calculateHandValue();
     }
 
     /**
@@ -283,91 +167,6 @@ class BlackJackController extends Controller
     }
 
     /**
-     * Calculates the requested players hand value
-     * Ignores face_down cards for the visible total
-     *
-     * @param int $arg_player_id
-     */
-    private function calculatePlayerHandValue($arg_player_id)
-    {
-        // Clear the current total before we re-calculate.
-        $this->setPlayerHandTotal($arg_player_id, 0);
-        $this->setPlayerVisibleHandTotal($arg_player_id, 0);
-
-        foreach($this->getPlayerHand($arg_player_id) as $card) {
-
-            $card_value = $card->getConvertedValue();
-
-            // Calculate total player hand value
-            $this->addToPlayerHandTotal($arg_player_id, $card_value);
-
-            // If a card is not face up we don't add it to the visible hand value we show to players.
-            if($card->getStatus() == 'face_up') {
-                $this->addToPlayerVisibleHandTotal($arg_player_id, $card_value);
-            }
-        }
-
-        // Calc ACE Cards Values
-        $this->calculateAceValues($arg_player_id);
-    }
-
-    /**
-     * Calculates the value of each Ace after all hand values have been calculated.
-     * Automatically picks the best option for the Ace value based on current hand values.
-     *
-     * @param int $arg_player_id
-     */
-    private function calculateAceValues($arg_player_id)
-    {
-        $current_aces_value = 0;
-
-        foreach($this->getPlayerHand($arg_player_id) as $card) {
-
-            $value = 0;
-
-            // For each ace we check if the current hand value + any previous aces + using the current ace as an 11
-            // would bust the player or not. If so, we set the value as 1.
-            switch ($card->getValue())
-            {
-                case "Ace":
-                    if($this->getPlayerHandTotal($arg_player_id) + $current_aces_value + 11 > 21) {
-                        $value = 1;
-                    } else {
-                        $value = 11;
-                    }
-                    break;
-            }
-
-            // Add to the total aces value to help calculate what the next ace's value should be if it's there.
-            $current_aces_value += $value;
-
-            if($card->getStatus() == 'face_up') {
-                $this->addToPlayerVisibleHandTotal($arg_player_id, $value);
-            }
-
-            $this->addToPlayerHandTotal($arg_player_id, $value);
-        }
-    }
-
-    /**
-     * Checks if a player has busted or not
-     *
-     * @param int $arg_player_id
-     *
-     * @return bool
-     */
-    public function didPlayerBust($arg_player_id)
-    {
-        $total = $this->getPlayerHandTotal($arg_player_id);
-
-        if ($total > 21) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
      * Performs the action sent for the player specified.
      *
      * @param int $arg_player_id
@@ -380,21 +179,8 @@ class BlackJackController extends Controller
                 $this->dealCard($arg_player_id);
                 break;
             case "Stay":
-                $this->setPlayerPickedStay($arg_player_id,true);
+                $this->getPlayer($arg_player_id)->setPickedStay(true);
                 break;
-        }
-    }
-
-    /**
-     * Flips any face_down cards to a face_up state for the dealer.
-     */
-    private function flipDealerCards()
-    {
-        // Loop over each card in the dealers hand and change the status if it's face down.
-        foreach($this->getPlayerHand(0) as $index => $card) {
-            if ($card->getStatus() == 'face_down') {
-                $card->setStatus('face_up');
-            }
         }
     }
 
@@ -403,15 +189,15 @@ class BlackJackController extends Controller
      */
     public function endGameCheck()
     {
-        if(($this->getPlayerPickedStay(0) == true && $this->getPlayerPickedStay(1) == true && $this->getPlayerPickedStay(2) == true) || ($this->didPlayerBust(0) == true)
+        if(($this->getPlayer(0)->isPickedStay() == true && $this->getPlayer(1)->isPickedStay() == true && $this->getPlayer(2)->isPickedStay() == true) || ($this->getPlayer(0)->didPlayerBust() == true)
         ) {
             $this->setCurrentGameState("STATE_GAME_OVER");
 
             // Flip over any hidden cards for the Dealer
-            $this->flipDealerCards();
+            $this->getPlayer(0)->flipCards();
 
             // Re-Calculate dealers hand with face up cards.
-            $this->calculatePlayerHandValue(0);
+            $this->getPlayer(0)->calculateHandValue();
         }
     }
 
@@ -429,14 +215,14 @@ class BlackJackController extends Controller
 
         // Fill an array with non busting players.
         foreach(self::PLAYERS as $player) {
-            if ($this->didPlayerBust($player) == false) {
+            if ($this->getPlayer($player)->didPlayerBust() == false) {
                 $non_busting_players[] = $player;
             }
         }
 
         // Add players with the highest seen total, who have not busted to the winning array.
         foreach($non_busting_players as $player) {
-            if($this->getPlayerHandTotal($player) == $highest_seen_total) {
+            if($this->getPlayer($player)->getHandTotal() == $highest_seen_total) {
                 $winning_players[] = $player;
             }
         }
@@ -445,17 +231,17 @@ class BlackJackController extends Controller
         $dealer_wins = array_search(0, $winning_players);
 
         // If the Dealer busted, all non busted players win!
-        if($this->didPlayerBust(0) == true) {
+        if($this->getPlayer(0)->didPlayerBust() == true) {
             $winning_players = $non_busting_players;
         }
 
         // Return the winning player names.
         if($dealer_wins === false) {
             foreach ($winning_players as $player) {
-                $return .= $this->getPlayerName($player) . ", ";
+                $return .= $this->getPlayer($player)->getName() . ", ";
             }
         } else {
-            $return .= $this->getPlayerName(0);
+            $return .= $this->getPlayer(0)->getName();
         }
 
         // If everyone busted, nobody wins.
@@ -468,22 +254,6 @@ class BlackJackController extends Controller
     }
 
     /**
-     * Calculate which action the AI should pick.
-     *
-     * @param $arg_player_id
-     *
-     * @return string
-     */
-    public function getAIAction($arg_player_id)
-    {
-        if ($this->getPlayerHandTotal($arg_player_id) <= 16) {
-            return "Hit Me";
-        } else {
-            return "Stay";
-        }
-    }
-
-    /**
      * Compares all players hands and returns the highest non busting hand value
      *
      * @return int
@@ -493,8 +263,8 @@ class BlackJackController extends Controller
         $highest_seen_total = 0;
 
         foreach(self::PLAYERS as $player) {
-            if($this->getPlayerHandTotal($player) > $highest_seen_total && $this->didPlayerBust($player) == false) {
-                $highest_seen_total = $this->getPlayerHandTotal($player);
+            if($this->getPlayer($player)->getHandTotal() > $highest_seen_total && $this->getPlayer($player)->didPlayerBust() == false) {
+                $highest_seen_total = $this->getPlayer($player)->getHandTotal();
             }
         }
 
